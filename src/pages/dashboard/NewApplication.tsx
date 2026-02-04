@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { FileUpload } from "@/components/FileUpload";
 import { 
   FileText, 
   ChevronRight, 
@@ -32,6 +33,12 @@ interface CustomField {
   is_required: boolean;
 }
 
+interface UploadedFile {
+  url: string;
+  name: string;
+  fieldName: string;
+}
+
 export default function NewApplication() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -42,12 +49,13 @@ export default function NewApplication() {
   const [selectedFormType, setSelectedFormType] = useState<FormType | null>(null);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   // W2 specific fields
   const [w2Data, setW2Data] = useState({
-    tax_year: "2025",
+    tax_year: "2026",
     employer_ein: "",
     employer_name: "",
     employer_address: "",
@@ -104,6 +112,23 @@ export default function NewApplication() {
     }
   }
 
+  function handleFileUpload(fieldName: string, url: string, fileName: string) {
+    if (url) {
+      setUploadedFiles(prev => {
+        const filtered = prev.filter(f => f.fieldName !== fieldName);
+        return [...filtered, { url, name: fileName, fieldName }];
+      });
+      setFormData(prev => ({ ...prev, [fieldName]: url }));
+    } else {
+      setUploadedFiles(prev => prev.filter(f => f.fieldName !== fieldName));
+      setFormData(prev => {
+        const newData = { ...prev };
+        delete newData[fieldName];
+        return newData;
+      });
+    }
+  }
+
   async function handleSubmit() {
     if (!selectedFormType || !user) return;
 
@@ -115,13 +140,14 @@ export default function NewApplication() {
         ...formData,
       };
 
-      const { error } = await supabase.from("form_applications").insert({
+      const { error } = await supabase.from("form_applications").insert([{
         user_id: user.id,
         form_type_id: selectedFormType.id,
         form_data: allFormData,
+        uploaded_files: JSON.parse(JSON.stringify(uploadedFiles)),
         total_price: selectedFormType.base_price,
         status: "pending",
-      });
+      }]);
 
       if (error) throw error;
 
@@ -147,6 +173,20 @@ export default function NewApplication() {
     const value = formData[field.field_name] || "";
 
     switch (field.field_type) {
+      case "file":
+      case "image":
+        return (
+          <FileUpload
+            userId={user?.id || ""}
+            fieldName={field.field_name}
+            accept={field.field_type === "image" ? "image/*" : "*"}
+            onUpload={(url, fileName) => handleFileUpload(field.field_name, url, fileName)}
+            existingFile={uploadedFiles.find(f => f.fieldName === field.field_name) ? {
+              url: uploadedFiles.find(f => f.fieldName === field.field_name)!.url,
+              name: uploadedFiles.find(f => f.fieldName === field.field_name)!.name
+            } : null}
+          />
+        );
       case "textarea":
         return (
           <Textarea
@@ -337,6 +377,7 @@ export default function NewApplication() {
                         <Input
                           value={w2Data.tax_year}
                           onChange={(e) => setW2Data({ ...w2Data, tax_year: e.target.value })}
+                          placeholder="2026"
                         />
                       </div>
                       <div className="space-y-2">

@@ -112,12 +112,12 @@ export default function Index() {
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[
-              { name: "W-2", desc: "Wage and Tax Statement", price: "$14.99" },
-              { name: "1099-NEC", desc: "Nonemployee Compensation", price: "$14.99" },
-              { name: "1099-MISC", desc: "Miscellaneous Income", price: "$14.99" },
-              { name: "1099-G", desc: "Government Payments", price: "$14.99" },
-              { name: "1099-R", desc: "Pension Distributions", price: "$14.99" },
-              { name: "1099-INT", desc: "Interest Income", price: "$14.99" },
+              { name: "W-2", desc: "Wage and Tax Statement" },
+              { name: "1099-NEC", desc: "Nonemployee Compensation" },
+              { name: "1099-MISC", desc: "Miscellaneous Income" },
+              { name: "1099-G", desc: "Government Payments" },
+              { name: "1099-R", desc: "Pension Distributions" },
+              { name: "1099-INT", desc: "Interest Income" },
             ].map((form) => (
               <div
                 key={form.name}
@@ -127,7 +127,6 @@ export default function Index() {
                   <div className="p-3 rounded-lg bg-accent/10 text-accent">
                     <FileText className="h-6 w-6" />
                   </div>
-                  <span className="text-2xl font-bold text-accent">{form.price}</span>
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{form.name}</h3>
                 <p className="text-muted-foreground">{form.desc}</p>
@@ -135,11 +134,21 @@ export default function Index() {
             ))}
           </div>
 
-          <div className="text-center mt-12">
+          <div className="text-center mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button asChild size="lg" className="bg-accent hover:bg-accent/90">
               <Link to="/signup">
                 View All Forms
                 <ArrowRight className="h-5 w-5 ml-2" />
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link to="/paystub">
+                Create Paystub
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link to="/tax-refund">
+                Get Tax Refund
               </Link>
             </Button>
           </div>
@@ -178,7 +187,7 @@ export default function Index() {
               <span className="font-display font-bold text-lg">TaxForm Pro</span>
             </div>
             <p className="text-primary-foreground/60 text-sm">
-              © 2025 TaxForm Pro. All rights reserved.
+              © 2026 TaxForm Pro. All rights reserved.
             </p>
             <div className="flex items-center gap-6 text-sm">
               <Link to="/terms" className="text-primary-foreground/60 hover:text-primary-foreground">

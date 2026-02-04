@@ -11,12 +11,17 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import Paystub from "./pages/Paystub";
+import TaxRefund from "./pages/TaxRefund";
 
 // Admin pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminFormTypes from "./pages/admin/AdminFormTypes";
 import AdminApplications from "./pages/admin/AdminApplications";
+import AdminSettings from "./pages/admin/AdminSettings";
 
 // User pages
 import UserDashboard from "./pages/dashboard/UserDashboard";
@@ -37,6 +42,10 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/paystub" element={<Paystub />} />
+            <Route path="/tax-refund" element={<TaxRefund />} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={
@@ -57,6 +66,11 @@ const App = () => (
             <Route path="/admin/applications" element={
               <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminApplications />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/settings" element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <AdminSettings />
               </ProtectedRoute>
             } />
 
