@@ -1,17 +1,30 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { UserLayout } from "@/components/layouts/UserLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { 
   FileText, 
   Clock, 
   CheckCircle, 
   XCircle,
   Plus,
-  Eye
+  Eye,
+  Trash2,
+  Loader2
 } from "lucide-react";
 import {
   Select,
@@ -31,9 +44,13 @@ interface Application {
 
 export default function UserApplications() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [applications, setApplications] = useState<Application[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [applicationToDelete, setApplicationToDelete] = useState<Application | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -58,10 +75,44 @@ export default function UserApplications() {
     }
   }
 
+  async function deleteApplication() {
+    if (!applicationToDelete) return;
+
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("form_applications")
+        .delete()
+        .eq("id", applicationToDelete.id);
+
+      if (error) throw error;
+
+      toast({ title: "Application deleted" });
+      setDeleteDialogOpen(false);
+      setApplicationToDelete(null);
+      fetchApplications();
+    } catch (error) {
+      console.error("Error deleting application:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete application. You can only delete pending applications.",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function confirmDelete(app: Application) {
+    setApplicationToDelete(app);
+    setDeleteDialogOpen(true);
+  }
+
   function getStatusIcon(status: string) {
     switch (status) {
       case "pending":
       case "in_review":
+      case "in_progress":
         return <Clock className="h-5 w-5 text-warning" />;
       case "approved":
       case "completed":
@@ -77,6 +128,7 @@ export default function UserApplications() {
     const styles: Record<string, string> = {
       pending: "status-badge status-pending",
       in_review: "status-badge status-in-review",
+      in_progress: "status-badge status-in-review",
       approved: "status-badge status-approved",
       rejected: "status-badge status-rejected",
       completed: "status-badge status-completed",
@@ -118,10 +170,9 @@ export default function UserApplications() {
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="in_review">In Review</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="in_progress">In Progress</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-sm text-muted-foreground">
@@ -131,8 +182,8 @@ export default function UserApplications() {
 
         {/* Applications List */}
         {loading ? (
-          <div className="text-center py-12 text-muted-foreground">
-            Loading applications...
+          <div className="text-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto text-accent" />
           </div>
         ) : filteredApplications.length === 0 ? (
           <Card>
@@ -178,9 +229,21 @@ export default function UserApplications() {
                           {app.status.replace("_", " ")}
                         </span>
                       </div>
-                      <Button variant="ghost" size="icon">
-                        <Eye className="h-5 w-5" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon">
+                          <Eye className="h-5 w-5" />
+                        </Button>
+                        {app.status === "pending" && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => confirmDelete(app)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -188,6 +251,35 @@ export default function UserApplications() {
             ))}
           </div>
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Application</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this application? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={deleteApplication}
+                disabled={deleting}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </UserLayout>
   );
