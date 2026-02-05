@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Eye, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Search, Eye, CheckCircle, XCircle, Clock, Download, FileImage, Trash2 } from "lucide-react";
 
 interface Application {
   id: string;
@@ -112,6 +112,62 @@ export default function AdminApplications() {
         variant: "destructive",
         title: "Error",
         description: "Failed to update status",
+      });
+    }
+  }
+
+  async function downloadFile(filePath: string, fileName: string) {
+    try {
+      const { data, error } = await supabase.storage
+        .from("application-files")
+        .download(filePath);
+
+      if (error) throw error;
+
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName || "download";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      toast({
+        variant: "destructive",
+        title: "Download failed",
+        description: "Could not download the file",
+      });
+    }
+  }
+
+  async function deleteApplication(appId: string) {
+    if (!confirm("Are you sure you want to delete this application? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("form_applications")
+        .delete()
+        .eq("id", appId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Application deleted",
+        description: "The application has been permanently removed.",
+      });
+
+      setDetailsOpen(false);
+      fetchApplications();
+    } catch (error) {
+      console.error("Error deleting application:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete application",
       });
     }
   }
@@ -298,6 +354,37 @@ export default function AdminApplications() {
                   </div>
                 </div>
 
+                {/* Uploaded Files */}
+                {selectedApp.uploaded_files && Array.isArray(selectedApp.uploaded_files) && selectedApp.uploaded_files.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-3">Uploaded Files</h3>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {(selectedApp.uploaded_files as any[]).map((file: any, index: number) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-3 rounded-lg border border-border"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <FileImage className="h-5 w-5 text-accent shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{file.name || `File ${index + 1}`}</p>
+                              <p className="text-sm text-muted-foreground">{file.fieldLabel || file.fieldName}</p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadFile(file.path, file.name)}
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Admin Notes */}
                 <div>
                   <h3 className="font-semibold mb-2">Admin Notes</h3>
@@ -340,6 +427,18 @@ export default function AdminApplications() {
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Complete
+                  </Button>
+                </div>
+
+                {/* Delete Application */}
+                <div className="pt-4 border-t border-border">
+                  <Button
+                    onClick={() => deleteApplication(selectedApp.id)}
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Application
                   </Button>
                 </div>
               </div>

@@ -33,27 +33,27 @@ export default function Index() {
         <div className="container mx-auto text-center">
           <div className="max-w-3xl mx-auto">
             <span className="inline-flex items-center px-4 py-1.5 rounded-full bg-accent/20 text-accent text-sm font-medium mb-6 animate-fade-in">
-              Trusted by 10,000+ Users
+              Fast W-2 Tax Refunds 2026
             </span>
             <h1 className="text-4xl md:text-6xl font-display font-bold text-primary-foreground mb-6 animate-slide-up">
-              Generate Professional<br />
-              <span className="text-accent">W-2 & 1099 Forms</span><br />
-              In Minutes
+              Get Your<br />
+              <span className="text-accent">W-2 Tax Refund</span><br />
+              Faster
             </h1>
             <p className="text-xl text-primary-foreground/70 mb-8 max-w-2xl mx-auto animate-slide-up">
-              Create IRS-compliant tax documents with our easy-to-use platform. 
-              Fast, secure, and professionally formatted.
+              Submit your W-2 and get your tax refund processed quickly. 
+              Professional service with maximum returns guaranteed.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up">
               <Button asChild size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground text-lg px-8 py-6">
-                <Link to="/signup">
-                  Start Free Today
+                <Link to="/tax-refund">
+                  Get Your Refund Now
                   <ArrowRight className="h-5 w-5 ml-2" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 text-lg px-8 py-6">
-                <Link to="/login">
-                  Sign In to Dashboard
+                <Link to="/signup">
+                  Create Forms
                 </Link>
               </Button>
             </div>
@@ -162,17 +162,24 @@ export default function Index() {
       >
         <div className="container mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-display font-bold text-primary-foreground mb-6">
-            Ready to Get Started?
+            Ready to Get Your Refund?
           </h2>
           <p className="text-xl text-primary-foreground/70 mb-8 max-w-2xl mx-auto">
-            Join thousands of satisfied customers who trust TaxForm Pro for their tax documents.
+            Submit your W-2 today and let our tax experts maximize your return. Fast, secure processing.
           </p>
-          <Button asChild size="lg" className="bg-accent hover:bg-accent/90 text-lg px-8 py-6">
-            <Link to="/signup">
-              Create Your Account
-              <ArrowRight className="h-5 w-5 ml-2" />
-            </Link>
-          </Button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Button asChild size="lg" className="bg-accent hover:bg-accent/90 text-lg px-8 py-6">
+              <Link to="/tax-refund">
+                Start My Refund
+                <ArrowRight className="h-5 w-5 ml-2" />
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 text-lg px-8 py-6">
+              <Link to="/signup">
+                Create Account
+              </Link>
+            </Button>
+          </div>
         </div>
       </section>
 
