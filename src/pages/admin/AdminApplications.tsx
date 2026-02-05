@@ -15,6 +15,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -116,28 +117,72 @@ export default function AdminApplications() {
     }
   }
 
-  async function downloadFile(filePath: string, fileName: string) {
+  async function downloadFile(file: any) {
+    // Validate file object
+    if (!file || typeof file !== 'object') {
+      toast({
+        variant: "destructive",
+        title: "Download failed",
+        description: "Invalid file data",
+      });
+      return;
+    }
+
+    const filePath = file.path || file.storagePath;
+    const fileName = file.name || file.fileName || "download";
+
+    if (!filePath) {
+      toast({
+        variant: "destructive",
+        title: "Download failed",
+        description: "File path not found",
+      });
+      return;
+    }
+
     try {
-      const { data, error } = await supabase.storage
+      // Generate a signed URL for secure download
+      const { data: signedData, error: signedError } = await supabase.storage
         .from("application-files")
-        .download(filePath);
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
 
-      if (error) throw error;
+      if (signedError) {
+        // Fallback to direct download
+        const { data, error } = await supabase.storage
+          .from("application-files")
+          .download(filePath);
 
-      const url = URL.createObjectURL(data);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName || "download";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+        if (error) throw error;
+
+        const url = URL.createObjectURL(data);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else if (signedData?.signedUrl) {
+        // Use signed URL
+        const a = document.createElement("a");
+        a.href = signedData.signedUrl;
+        a.download = fileName;
+        a.target = "_blank";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      toast({
+        title: "Download started",
+        description: fileName,
+      });
     } catch (error) {
       console.error("Error downloading file:", error);
       toast({
         variant: "destructive",
         title: "Download failed",
-        description: "Could not download the file",
+        description: "Could not download the file. Please try again.",
       });
     }
   }
@@ -312,6 +357,9 @@ export default function AdminApplications() {
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Application Details</DialogTitle>
+              <DialogDescription>
+                Review application details, download files, and update status.
+              </DialogDescription>
             </DialogHeader>
             {selectedApp && (
               <div className="space-y-6 py-4">
@@ -374,7 +422,7 @@ export default function AdminApplications() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => downloadFile(file.path, file.name)}
+                            onClick={() => downloadFile(file)}
                           >
                             <Download className="h-4 w-4 mr-1" />
                             Download

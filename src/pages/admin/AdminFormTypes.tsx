@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -22,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit2, Trash2, GripVertical, FileText } from "lucide-react";
+import { Plus, Edit2, Trash2, GripVertical, FileText, ToggleLeft, ToggleRight } from "lucide-react";
 
 interface FormType {
   id: string;
@@ -141,6 +142,30 @@ export default function AdminFormTypes() {
     }
   }
 
+  async function toggleFormActive(formType: FormType) {
+    try {
+      const { error } = await supabase
+        .from("form_types")
+        .update({ is_active: !formType.is_active })
+        .eq("id", formType.id);
+
+      if (error) throw error;
+
+      toast({ 
+        title: formType.is_active ? "Form disabled" : "Form enabled",
+        description: `${formType.name} is now ${formType.is_active ? "inactive" : "active"}`,
+      });
+      fetchFormTypes();
+    } catch (error) {
+      console.error("Error toggling form status:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update form status",
+      });
+    }
+  }
+
   async function addCustomField() {
     if (!selectedFormType) return;
 
@@ -240,32 +265,47 @@ export default function AdminFormTypes() {
             </CardHeader>
             <CardContent className="space-y-2">
               {formTypes.map((form) => (
-                <button
+                <div
                   key={form.id}
-                  onClick={() => setSelectedFormType(form)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
+                  className={`flex items-center gap-2 p-3 rounded-lg transition-colors ${
                     selectedFormType?.id === form.id
                       ? "bg-accent text-accent-foreground"
                       : "hover:bg-muted"
                   }`}
                 >
-                  <FileText className="h-5 w-5" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{form.name}</p>
-                    <p className={`text-sm ${
-                      selectedFormType?.id === form.id 
-                        ? "text-accent-foreground/70" 
-                        : "text-muted-foreground"
-                    }`}>
-                      ${form.base_price}
-                    </p>
-                  </div>
-                  {!form.is_active && (
-                    <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                      Inactive
-                    </span>
-                  )}
-                </button>
+                  <button
+                    onClick={() => setSelectedFormType(form)}
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  >
+                    <FileText className="h-5 w-5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{form.name}</p>
+                      <p className={`text-sm ${
+                        selectedFormType?.id === form.id 
+                          ? "text-accent-foreground/70" 
+                          : "text-muted-foreground"
+                      }`}>
+                        ${form.base_price}
+                      </p>
+                    </div>
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFormActive(form);
+                    }}
+                    className={form.is_active ? "text-success hover:text-success" : "text-muted-foreground hover:text-muted-foreground"}
+                    title={form.is_active ? "Click to disable" : "Click to enable"}
+                  >
+                    {form.is_active ? (
+                      <ToggleRight className="h-5 w-5" />
+                    ) : (
+                      <ToggleLeft className="h-5 w-5" />
+                    )}
+                  </Button>
+                </div>
               ))}
             </CardContent>
           </Card>
@@ -323,6 +363,9 @@ export default function AdminFormTypes() {
                         <DialogContent>
                           <DialogHeader>
                             <DialogTitle>Add Custom Field</DialogTitle>
+                            <DialogDescription>
+                              Add a new field for users to fill out when submitting this form.
+                            </DialogDescription>
                           </DialogHeader>
                           <div className="space-y-4 py-4">
                             <div className="space-y-2">
@@ -431,6 +474,9 @@ export default function AdminFormTypes() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Form Type</DialogTitle>
+              <DialogDescription>
+                Update form settings including name, price, and availability.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
