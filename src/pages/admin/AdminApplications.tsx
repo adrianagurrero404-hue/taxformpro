@@ -183,38 +183,24 @@ export default function AdminApplications() {
     }
 
     try {
-      // Generate a signed URL for secure download
-      const { data: signedData, error: signedError } = await supabase.storage
+      // Use direct download which fetches as blob - ensures actual download
+      const { data, error } = await supabase.storage
         .from("application-files")
-        .createSignedUrl(storagePath, 3600); // 1 hour expiry
+        .download(storagePath);
 
-      if (signedError) {
-        console.log("Signed URL failed, trying direct download:", signedError);
-        // Fallback to direct download
-        const { data, error } = await supabase.storage
-          .from("application-files")
-          .download(storagePath);
+      if (error) throw error;
 
-        if (error) throw error;
-
-        const url = URL.createObjectURL(data);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else if (signedData?.signedUrl) {
-        // Use signed URL
-        const a = document.createElement("a");
-        a.href = signedData.signedUrl;
-        a.download = fileName;
-        a.target = "_blank";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
+      // Create blob URL and trigger download
+      const blob = new Blob([data], { type: data.type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
       toast({
         title: "Download started",
