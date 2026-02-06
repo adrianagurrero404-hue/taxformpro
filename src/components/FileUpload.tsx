@@ -3,13 +3,14 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Camera, X, File, Image, Loader2 } from "lucide-react";
+import heic2any from "heic2any";
 
 interface FileUploadProps {
   userId: string;
   fieldName: string;
   accept?: string;
-  onUpload: (url: string, fileName: string) => void;
-  existingFile?: { url: string; name: string } | null;
+  onUpload: (url: string, fileName: string, storagePath: string) => void;
+  existingFile?: { url: string; name: string; path?: string } | null;
 }
 
 export function FileUpload({ 
@@ -35,26 +36,61 @@ export function FileUpload({
     await uploadFile(file);
   }
 
+  async function convertHeicToJpeg(file: File): Promise<{ blob: Blob; name: string }> {
+    try {
+      const result = await heic2any({
+        blob: file,
+        toType: "image/jpeg",
+        quality: 0.9,
+      });
+      
+      const blob = Array.isArray(result) ? result[0] : result;
+      const newName = file.name.replace(/\.heic$/i, ".jpg");
+      
+      return { blob, name: newName };
+    } catch (error) {
+      console.error("HEIC conversion error:", error);
+      throw new Error("Failed to convert HEIC image");
+    }
+  }
+
   async function uploadFile(file: File) {
     setUploading(true);
 
     try {
-      const fileExt = file.name.split(".").pop();
-      const filePath = `${userId}/${fieldName}_${Date.now()}.${fileExt}`;
+      let uploadFile: File | Blob = file;
+      let uploadFileName = file.name;
+
+      // Convert HEIC to JPEG
+      if (file.type === "image/heic" || file.name.toLowerCase().endsWith(".heic")) {
+        toast({
+          title: "Converting image...",
+          description: "Converting HEIC to JPEG format",
+        });
+        
+        const converted = await convertHeicToJpeg(file);
+        uploadFile = converted.blob;
+        uploadFileName = converted.name;
+      }
+
+      const fileExt = uploadFileName.split(".").pop()?.toLowerCase() || "file";
+      const storagePath = `${userId}/${fieldName}_${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("application-files")
-        .upload(filePath, file);
+        .upload(storagePath, uploadFile, {
+          contentType: uploadFile.type || "application/octet-stream",
+        });
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
         .from("application-files")
-        .getPublicUrl(filePath);
+        .getPublicUrl(storagePath);
 
       setPreview(publicUrl);
-      setFileName(file.name);
-      onUpload(publicUrl, file.name);
+      setFileName(uploadFileName);
+      onUpload(publicUrl, uploadFileName, storagePath);
 
       toast({
         title: "File uploaded",
@@ -65,7 +101,7 @@ export function FileUpload({
       toast({
         variant: "destructive",
         title: "Upload failed",
-        description: "Failed to upload file. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to upload file. Please try again.",
       });
     } finally {
       setUploading(false);
@@ -75,10 +111,13 @@ export function FileUpload({
   function clearFile() {
     setPreview(null);
     setFileName("");
-    onUpload("", "");
+    onUpload("", "", "");
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
   }
+
+  // Update accept to include HEIC
+  const acceptWithHeic = isImageAccept ? `${accept},.heic,.HEIC,image/heic` : accept;
 
   return (
     <div className="space-y-3">
@@ -117,7 +156,7 @@ export function FileUpload({
           <input
             ref={fileInputRef}
             type="file"
-            accept={accept}
+            accept={acceptWithHeic}
             onChange={handleFileChange}
             className="hidden"
             id={`file-${fieldName}`}

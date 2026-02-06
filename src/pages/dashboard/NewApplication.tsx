@@ -37,6 +37,8 @@ interface UploadedFile {
   url: string;
   name: string;
   fieldName: string;
+  path: string;
+  fieldLabel?: string;
 }
 
 export default function NewApplication() {
@@ -112,11 +114,11 @@ export default function NewApplication() {
     }
   }
 
-  function handleFileUpload(fieldName: string, url: string, fileName: string) {
-    if (url) {
+  function handleFileUpload(fieldName: string, fieldLabel: string, url: string, fileName: string, storagePath: string) {
+    if (url && storagePath) {
       setUploadedFiles(prev => {
         const filtered = prev.filter(f => f.fieldName !== fieldName);
-        return [...filtered, { url, name: fileName, fieldName }];
+        return [...filtered, { url, name: fileName, fieldName, path: storagePath, fieldLabel }];
       });
       setFormData(prev => ({ ...prev, [fieldName]: url }));
     } else {
@@ -175,15 +177,17 @@ export default function NewApplication() {
     switch (field.field_type) {
       case "file":
       case "image":
+        const existingUpload = uploadedFiles.find(f => f.fieldName === field.field_name);
         return (
           <FileUpload
             userId={user?.id || ""}
             fieldName={field.field_name}
             accept={field.field_type === "image" ? "image/*" : "*"}
-            onUpload={(url, fileName) => handleFileUpload(field.field_name, url, fileName)}
-            existingFile={uploadedFiles.find(f => f.fieldName === field.field_name) ? {
-              url: uploadedFiles.find(f => f.fieldName === field.field_name)!.url,
-              name: uploadedFiles.find(f => f.fieldName === field.field_name)!.name
+            onUpload={(url, fileName, storagePath) => handleFileUpload(field.field_name, field.field_label, url, fileName, storagePath)}
+            existingFile={existingUpload ? {
+              url: existingUpload.url,
+              name: existingUpload.name,
+              path: existingUpload.path
             } : null}
           />
         );

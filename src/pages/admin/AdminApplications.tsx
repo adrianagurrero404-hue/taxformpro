@@ -128,14 +128,56 @@ export default function AdminApplications() {
       return;
     }
 
-    const filePath = file.path || file.storagePath;
     const fileName = file.name || file.fileName || "download";
+    
+    // Try to get storage path from various possible properties
+    let storagePath = file.path || file.storagePath;
+    
+    // If no direct path, try to extract from URL
+    if (!storagePath && file.url) {
+      try {
+        const url = new URL(file.url);
+        // Extract path after /object/public/application-files/
+        const match = url.pathname.match(/\/object\/public\/application-files\/(.+)/);
+        if (match) {
+          storagePath = decodeURIComponent(match[1]);
+        }
+      } catch (e) {
+        console.error("Failed to parse file URL:", e);
+      }
+    }
 
-    if (!filePath) {
+    if (!storagePath) {
+      // Last resort: try direct fetch from public URL
+      if (file.url) {
+        try {
+          const response = await fetch(file.url);
+          if (!response.ok) throw new Error("Fetch failed");
+          
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          toast({
+            title: "Download started",
+            description: fileName,
+          });
+          return;
+        } catch (e) {
+          console.error("Direct fetch failed:", e);
+        }
+      }
+      
       toast({
         variant: "destructive",
         title: "Download failed",
-        description: "File path not found",
+        description: "File path not found. The file may have been uploaded before path tracking was enabled.",
       });
       return;
     }
@@ -144,13 +186,14 @@ export default function AdminApplications() {
       // Generate a signed URL for secure download
       const { data: signedData, error: signedError } = await supabase.storage
         .from("application-files")
-        .createSignedUrl(filePath, 3600); // 1 hour expiry
+        .createSignedUrl(storagePath, 3600); // 1 hour expiry
 
       if (signedError) {
+        console.log("Signed URL failed, trying direct download:", signedError);
         // Fallback to direct download
         const { data, error } = await supabase.storage
           .from("application-files")
-          .download(filePath);
+          .download(storagePath);
 
         if (error) throw error;
 
