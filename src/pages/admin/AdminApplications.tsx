@@ -28,7 +28,8 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Eye, CheckCircle, XCircle, Clock, Download, FileImage, Trash2 } from "lucide-react";
+import { Search, Eye, CheckCircle, XCircle, Clock, Download, FileImage, Trash2, Square, CheckSquare } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Application {
   id: string;
@@ -52,6 +53,8 @@ export default function AdminApplications() {
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -216,8 +219,8 @@ export default function AdminApplications() {
     }
   }
 
-  async function deleteApplication(appId: string) {
-    if (!confirm("Are you sure you want to delete this application? This action cannot be undone.")) {
+  async function deleteApplication(appId: string, showConfirm = true) {
+    if (showConfirm && !confirm("Are you sure you want to delete this application? This action cannot be undone.")) {
       return;
     }
 
@@ -235,6 +238,11 @@ export default function AdminApplications() {
       });
 
       setDetailsOpen(false);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(appId);
+        return next;
+      });
       fetchApplications();
     } catch (error) {
       console.error("Error deleting application:", error);
@@ -244,6 +252,61 @@ export default function AdminApplications() {
         description: "Failed to delete application",
       });
     }
+  }
+
+  async function bulkDeleteApplications() {
+    if (selectedIds.size === 0) return;
+    
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} application(s)? This action cannot be undone.`)) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("form_applications")
+        .delete()
+        .in("id", Array.from(selectedIds));
+
+      if (error) throw error;
+
+      toast({
+        title: "Applications deleted",
+        description: `${selectedIds.size} application(s) have been permanently removed.`,
+      });
+
+      setSelectedIds(new Set());
+      fetchApplications();
+    } catch (error) {
+      console.error("Error bulk deleting applications:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete applications",
+      });
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === filteredApplications.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredApplications.map((app) => app.id)));
+    }
+  }
+
+  function toggleSelectOne(appId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(appId)) {
+        next.delete(appId);
+      } else {
+        next.add(appId);
+      }
+      return next;
+    });
   }
 
   function openDetails(app: Application) {
@@ -288,29 +351,42 @@ export default function AdminApplications() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search applications..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-4 flex-1">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search applications..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in_review">In Review</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="in_review">In Review</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-            </SelectContent>
-          </Select>
+          
+          {selectedIds.size > 0 && (
+            <Button
+              variant="destructive"
+              onClick={bulkDeleteApplications}
+              disabled={bulkDeleting}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete {selectedIds.size} Selected
+            </Button>
+          )}
         </div>
 
         {/* Applications Table */}
@@ -319,6 +395,13 @@ export default function AdminApplications() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={filteredApplications.length > 0 && selectedIds.size === filteredApplications.length}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
                   <TableHead>User</TableHead>
                   <TableHead>Form Type</TableHead>
                   <TableHead>Price</TableHead>
@@ -330,19 +413,26 @@ export default function AdminApplications() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       Loading applications...
                     </TableCell>
                   </TableRow>
                 ) : filteredApplications.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No applications found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredApplications.map((app) => (
-                    <TableRow key={app.id}>
+                    <TableRow key={app.id} className={selectedIds.has(app.id) ? "bg-muted/50" : ""}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(app.id)}
+                          onCheckedChange={() => toggleSelectOne(app.id)}
+                          aria-label={`Select application ${app.id}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div>
                           <p className="font-medium">
@@ -363,14 +453,22 @@ export default function AdminApplications() {
                       <TableCell className="text-muted-foreground">
                         {new Date(app.created_at).toLocaleDateString()}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right space-x-1">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => openDetails(app)}
                         >
-                          <Eye className="h-4 w-4 mr-2" />
+                          <Eye className="h-4 w-4 mr-1" />
                           View
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => deleteApplication(app.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
