@@ -20,6 +20,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -28,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Eye, CheckCircle, XCircle, Clock, Download, FileImage, Trash2, Square, CheckSquare } from "lucide-react";
+import { Search, Eye, CheckCircle, XCircle, Clock, Download, FileImage, Trash2, FileDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface Application {
@@ -55,6 +65,8 @@ export default function AdminApplications() {
   const [adminNotes, setAdminNotes] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "single" | "bulk"; id?: string } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -219,74 +231,133 @@ export default function AdminApplications() {
     }
   }
 
-  async function deleteApplication(appId: string, showConfirm = true) {
-    if (showConfirm && !confirm("Are you sure you want to delete this application? This action cannot be undone.")) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from("form_applications")
-        .delete()
-        .eq("id", appId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Application deleted",
-        description: "The application has been permanently removed.",
-      });
-
-      setDetailsOpen(false);
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(appId);
-        return next;
-      });
-      fetchApplications();
-    } catch (error) {
-      console.error("Error deleting application:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to delete application",
-      });
-    }
+  function confirmDelete(type: "single" | "bulk", id?: string) {
+    setDeleteTarget({ type, id });
+    setDeleteDialogOpen(true);
   }
 
-  async function bulkDeleteApplications() {
-    if (selectedIds.size === 0) return;
-    
-    if (!confirm(`Are you sure you want to delete ${selectedIds.size} application(s)? This action cannot be undone.`)) {
+  async function executeDelete() {
+    if (!deleteTarget) return;
+
+    if (deleteTarget.type === "single" && deleteTarget.id) {
+      try {
+        const { error } = await supabase
+          .from("form_applications")
+          .delete()
+          .eq("id", deleteTarget.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Application deleted",
+          description: "The application has been permanently removed.",
+        });
+
+        setDetailsOpen(false);
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(deleteTarget.id!);
+          return next;
+        });
+        fetchApplications();
+      } catch (error) {
+        console.error("Error deleting application:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to delete application",
+        });
+      }
+    } else if (deleteTarget.type === "bulk") {
+      if (selectedIds.size === 0) return;
+
+      setBulkDeleting(true);
+      try {
+        const { error } = await supabase
+          .from("form_applications")
+          .delete()
+          .in("id", Array.from(selectedIds));
+
+        if (error) throw error;
+
+        toast({
+          title: "Applications deleted",
+          description: `${selectedIds.size} application(s) have been permanently removed.`,
+        });
+
+        setSelectedIds(new Set());
+        fetchApplications();
+      } catch (error) {
+        console.error("Error bulk deleting applications:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to delete applications",
+        });
+      } finally {
+        setBulkDeleting(false);
+      }
+    }
+
+    setDeleteDialogOpen(false);
+    setDeleteTarget(null);
+  }
+
+  function exportToCSV() {
+    if (filteredApplications.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No data to export",
+        description: "There are no applications matching your filters.",
+      });
       return;
     }
 
-    setBulkDeleting(true);
-    try {
-      const { error } = await supabase
-        .from("form_applications")
-        .delete()
-        .in("id", Array.from(selectedIds));
+    const headers = [
+      "ID",
+      "User Name",
+      "User Email",
+      "Form Type",
+      "Status",
+      "Total Price",
+      "Created At",
+      "Admin Notes",
+      "Form Data",
+    ];
 
-      if (error) throw error;
+    const csvRows = [
+      headers.join(","),
+      ...filteredApplications.map((app) => {
+        const formDataStr = JSON.stringify(app.form_data || {}).replace(/"/g, '""');
+        return [
+          app.id,
+          `"${(app.profiles?.full_name || "No name").replace(/"/g, '""')}"`,
+          `"${(app.profiles?.email || "").replace(/"/g, '""')}"`,
+          `"${(app.form_types?.name || "").replace(/"/g, '""')}"`,
+          app.status,
+          app.total_price,
+          new Date(app.created_at).toISOString(),
+          `"${(app.admin_notes || "").replace(/"/g, '""')}"`,
+          `"${formDataStr}"`,
+        ].join(",");
+      }),
+    ];
 
-      toast({
-        title: "Applications deleted",
-        description: `${selectedIds.size} application(s) have been permanently removed.`,
-      });
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `applications_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
-      setSelectedIds(new Set());
-      fetchApplications();
-    } catch (error) {
-      console.error("Error bulk deleting applications:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to delete applications",
-      });
-    } finally {
-      setBulkDeleting(false);
-    }
+    toast({
+      title: "Export complete",
+      description: `Exported ${filteredApplications.length} application(s) to CSV.`,
+    });
   }
 
   function toggleSelectAll() {
@@ -377,16 +448,22 @@ export default function AdminApplications() {
             </Select>
           </div>
           
-          {selectedIds.size > 0 && (
-            <Button
-              variant="destructive"
-              onClick={bulkDeleteApplications}
-              disabled={bulkDeleting}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete {selectedIds.size} Selected
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={exportToCSV}>
+              <FileDown className="h-4 w-4 mr-2" />
+              Export CSV
             </Button>
-          )}
+            {selectedIds.size > 0 && (
+              <Button
+                variant="destructive"
+                onClick={() => confirmDelete("bulk")}
+                disabled={bulkDeleting}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete {selectedIds.size} Selected
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Applications Table */}
@@ -466,7 +543,7 @@ export default function AdminApplications() {
                           variant="ghost"
                           size="sm"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => deleteApplication(app.id)}
+                          onClick={() => confirmDelete("single", app.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -608,7 +685,7 @@ export default function AdminApplications() {
                 {/* Delete Application */}
                 <div className="pt-4 border-t border-border">
                   <Button
-                    onClick={() => deleteApplication(selectedApp.id)}
+                    onClick={() => confirmDelete("single", selectedApp.id)}
                     variant="destructive"
                     className="w-full"
                   >
@@ -620,6 +697,29 @@ export default function AdminApplications() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {deleteTarget?.type === "bulk"
+                  ? `This will permanently delete ${selectedIds.size} application(s). This action cannot be undone.`
+                  : "This will permanently delete this application. This action cannot be undone."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={executeDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminLayout>
   );
